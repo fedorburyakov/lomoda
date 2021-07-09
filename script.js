@@ -2,7 +2,16 @@ const headerCityButton = document.querySelector('.header__city-button');
 
 let hash = location.hash.substring(1);
 
-headerCityButton.textContent = localStorage.getItem('lomoda-location') || 'Ваш город?'
+headerCityButton.textContent = localStorage.getItem('lomoda-location') || 'Ваш город?';
+
+const cartListGoods = document.querySelector('.cart__list-goods');
+const cartTotalCost = document.querySelector('.cart__total-cost');
+
+const subheaderCart = document.querySelector('.subheader__cart');
+const cartOverlay = document.querySelector('.cart-overlay');
+
+const getLocalStorage = () => JSON?.parse(localStorage.getItem('cart-lomoda')) || [];
+const setLocalStorage = data => localStorage.setItem('cart-lomoda', JSON.stringify(data));
 
 headerCityButton.addEventListener('click', () => {
   const city = prompt('Укажите ваш город');
@@ -32,21 +41,53 @@ const enabledScroll = () => {
   });
 }
 
-// модальное окно (корзина)
+// корзина
 
-const subheaderCart = document.querySelector('.subheader__cart');
+const renderCart = () => {
+  cartListGoods.textContent = '';
+  const cartItems = getLocalStorage();
+  let totalPrice = 0;
+  cartItems.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${item.brand} ${item.name}</td>
+      ${item.color ? `<td>${item.color}</td>` : `<td>-</td>`}
+      ${item.sizes ? `<td>${item.sizes}</td>` : `<td>-</td>`}
+      <td>${item.cost} &#8381;</td>
+      <td><button class="btn-delete" data-id="${item.id}">&times;</button></td>
+      `;
+    totalPrice += item.cost;
+    cartListGoods.append(tr);
+  });
+  cartTotalCost.innerHTML = totalPrice+' &#8381';
+}
 
-const cartOverlay = document.querySelector('.cart-overlay');
+const deleteItemCart = id => {
+  const cartItem = getLocalStorage();
+  const newCartItems = cartItem.filter(item => item.id !== id);
+  setLocalStorage(newCartItems);
+}
 
 const openCartModel = () => {
   cartOverlay.classList.add('cart-overlay-open');
   disabledScroll();
+  renderCart();
 }
 
 const closeCartModel = () => {
   cartOverlay.classList.remove('cart-overlay-open');
   enabledScroll();
 }
+
+cartListGoods.addEventListener('click', e => {
+  if (e.target.matches('.btn-delete')) {
+    deleteItemCart(e.target.dataset.id);
+    renderCart();
+  } 
+})
+
+
 
 // запрос базы данных
 
@@ -91,21 +132,13 @@ document.addEventListener('keydown', event => {
   }
 })
 
-
 // страница товаров
 try {
 
   const goodsList = document.querySelector('.goods__list');
-
-  if (!goodsList) {
-    throw 'This is not a goods page';
-  }
-
+  if (!goodsList) throw 'This is not a goods page'
   const goodsTitle = document.querySelector('.goods__title');
-
-  const changeTitle = () => {
-    goodsTitle.textContent = document.querySelector(`[href*="#${hash}"]`).textContent;
-  }
+  const changeTitle = () => goodsTitle.textContent = document.querySelector(`[href*="#${hash}"]`).textContent
 
   const createCard = ({ id, preview, cost, brand, name, sizes}) => {
     const li = document.createElement('li');
@@ -148,7 +181,7 @@ try {
 }
 
 catch (n) {
-  console.warn(n)
+  console.warn(n);
 }
 
 // страница товара
@@ -156,11 +189,7 @@ catch (n) {
 try {
 
   const cardGood = document.querySelector('.card-good');
-
-  if (!cardGood) {
-    throw 'This is not a card-good page';
-  }
-
+  if (!cardGood) throw 'This is not a card-good page';
   const cardGoodBuy = document.querySelector('.card-good__buy');
   const cardGoodImage = document.querySelector('.card-good__image');
   const cardGoodBrand = document.querySelector('.card-good__brand');
@@ -172,10 +201,11 @@ try {
   const cardGoodColorList = document.querySelector('.card-good__color-list');
   const cardGoodSelectWrapper = document.querySelectorAll('.card-good__select__wrapper');
 
-  const generateList = data => data.reduce((accum, item, i) => accum +
-    `<li class="card-good__select-item data-id="${i}"">${item}</li>`, '')
+  const generateList = data => data.reduce((accum, item, i) => accum + `<li class="card-good__select-item data-id="${i}"">${item}</li>`, '')
   
-  const renderCardGood = ([{brand, name, cost, color, sizes, photo}]) => {
+  const renderCardGood = ([{id, brand, name, cost, color, sizes, photo}]) => {
+
+    const data = { brand, name, cost, id };
     cardGoodImage.src = `../goods-image/${photo}`;
     cardGoodImage.alt = `${brand} ${name}`;
     cardGoodBrand.textContent = brand;
@@ -197,6 +227,29 @@ try {
     else {
       cardGoodSizes.style.display = 'none';
     }
+
+    if (getLocalStorage().some(item => item.id === id)) {
+      cardGoodBuy.classList.add('delete');
+      cardGoodBuy.textContent = 'Удалить из корзины';
+    }
+
+    cardGoodBuy.addEventListener('click', () => {
+      if (cardGoodBuy.classList.contains('delete')) {
+        deleteItemCart(id);
+        cardGoodBuy.classList.remove('delete');
+        cardGoodBuy.textContent = 'Добавить в корзину';
+        return;
+      }
+      if (color) data.color = cardGoodColor.textContent;
+      if (sizes) data.sizes = cardGoodSizes.textContent;
+      
+      cardGoodBuy.classList.add('delete');
+      cardGoodBuy.textContent = 'Удалить из корзины';
+
+      const cardData = getLocalStorage();
+      cardData.push(data);
+      setLocalStorage(cardData);
+  })
   }
 
   cardGoodSelectWrapper.forEach(item => {
@@ -217,8 +270,6 @@ try {
   getGoods(renderCardGood, 'id', hash);
 }
 
-
-
 catch (err) {
-  console.warn(err)
+  console.warn(err);
 }
